@@ -1,38 +1,45 @@
-from collections import namedtuple
-import altair as alt
-import math
-import pandas as pd
 import streamlit as st
+import numpy as np
+import pandas as pd
+from requests_html import HTMLSession
+import json
 
-"""
-# Welcome to Streamlit!
+st.title('HTTP Status Observer')
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:
+url = st.text_input('Enter your URL-address')
+check = st.button('Check!')
 
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+pd.set_option("display.max_colwidth", None)
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+if url or (url and check):
+    session = HTMLSession()
+    r = session.get(url, allow_redirects=False)
 
+    if r.status_code == (301 or 302 or 303):
+        r_full = session.get(url, allow_redirects=True)
+        st.write(r_full.status_code)
+        st.subheader('Headers')
+        headers = dict(r_full.headers)
+        df = pd.DataFrame(headers, index=['Header Value']).transpose()
+        st.dataframe(df, height=768)
+        st.subheader('Redirect Chains')
+        nb_redirects = len(r_full.history)
+        st.write('First Status Code :', r_full.history[0])
+        st.write('Number Of Redirects :', nb_redirects)
 
-with st.echo(code_location='below'):
-    total_points = st.slider("Number of points in spiral", 1, 5000, 2000)
-    num_turns = st.slider("Number of turns in spiral", 1, 100, 9)
+        st.write(url)
 
-    Point = namedtuple('Point', 'x y')
-    data = []
+        for resp in r.history:
+            st.write(resp.status_code, resp.url)
 
-    points_per_turn = total_points / num_turns
-
-    for curr_point_num in range(total_points):
-        curr_turn, i = divmod(curr_point_num, points_per_turn)
-        angle = (curr_turn + 1) * 2 * math.pi * i / points_per_turn
-        radius = curr_point_num / total_points
-        x = radius * math.cos(angle)
-        y = radius * math.sin(angle)
-        data.append(Point(x, y))
-
-    st.altair_chart(alt.Chart(pd.DataFrame(data), height=500, width=500)
-        .mark_circle(color='#0068c9', opacity=0.5)
-        .encode(x='x:Q', y='y:Q'))
+        st.write(r.status_code, r.url)
+    else:
+        st.write(r.status_code)
+        st.subheader('Headers')
+        headers = dict(r.headers)
+        st.write(headers)
+        df = pd.DataFrame(headers, index=['Header Value']).transpose()
+        df['Header Value'] = df['Header Value'].str.wrap(10)
+        st.dataframe(df, width=1024, height=768)
+else:
+    st.write('No url added')
